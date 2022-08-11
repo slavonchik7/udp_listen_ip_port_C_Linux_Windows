@@ -48,11 +48,18 @@ typedef struct sockaddr_in sockaddr_in_t;
 #define INET_ADDRLEN 46
 
 
-#define def_eprintf(format, ...) \
-            {fprintf(stderr, format, __VA_ARGS__ + 0);}
+#define def_fhprintf(format, ...) { \
+            printf(format, __VA_ARGS__); \
+            fflush(stdout); }
+
+#define def_eprintf(eval, format, ...) { \
+            fprintf(stderr, format, __VA_ARGS__); \
+            fflush(stderr); \
+            exit(eval); }
 
 #define def_app_exit(sck, eval, format, ...) { \
-            fprintf(stderr, format, __VA_ARGS__ + 0); \
+            fprintf(stderr, format, __VA_ARGS__); \
+            fflush(stderr); \
             app_exit(sck, eval); }
 
 
@@ -117,32 +124,27 @@ int main(int argc, char** argv) {
     char timestr[TIME_STR_LEN];
 
 
-    if (argc < 2) {
-        fprintf(stderr, "Error: more arguments are needed\n");
-        exit(-1);
-    }
+    if (argc < 2)
+        def_eprintf(-1, "Error: more arguments are needed%s\n", "")
 
 
     /* saving a pointer to a string storing our port */
     port_ptr = strstr(argv[1], IP_PORT_DELIMITER);
-    if (port_ptr == NULL) {
-        fprintf(stderr, "Error: no port was specified\n");
-        exit(-1);
-    } else
+    if (port_ptr == NULL)
+        def_eprintf(-1, "Error: no port was specified%s\n", "")
+    else
         port_ptr++;
 
 
     /* checking the entered buffer size */
     mess_size = 0;
     if (argc > 2) {
-        if (check_to_int(argv[2]) < 0)
+        if (check_to_int(argv[2]) < 0) {
             mess_size = DEFAULT_MESS_SIZE;
-        else {
+        } else {
             int ms = atoi(argv[2]);
-            if (ms < 0) {
-                fprintf(stderr, "Error: the buffer size cannot be less 0 \n");
-                exit(-1);
-            }
+            if (ms < 0)
+                def_eprintf(-1, "Error: the buffer size cannot be less 0%s\n", "")
             else
                 mess_size = ms;
         }
@@ -152,10 +154,8 @@ int main(int argc, char** argv) {
 
 
 #ifdef _WIN32
-    if ( WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup error: error code: %d\n", get_last_error());
-        exit(-1);
-    }
+    if ( WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        def_eprintf(-1, "WSAStartup error: error code: %d\n", get_last_error())
 
     hstdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif // _WIN32
@@ -167,8 +167,7 @@ int main(int argc, char** argv) {
 
     if ( argv[1][0] == *IP_PORT_DELIMITER ) {
         servlocal.sin_addr.s_addr = htonl(INADDR_ANY);
-    }
-    else {
+    } else {
 
         size_t ipplen = strlen(argv[1]);
         char *pch = argv[1];
@@ -188,10 +187,7 @@ int main(int argc, char** argv) {
         #else
             inet_pton(AF_INET, ipstr_addr, &servlocal.sin_addr) < 0
         #endif /* _WIN32 */
-            ) {
-            fprintf(stderr, "Error ip convert: error code: %d\n", get_last_error());
-            exit(-1);
-        }
+            ) def_eprintf(-1, "Error ip convert: error code: %d\n", get_last_error())
     }
 
 
@@ -207,32 +203,25 @@ int main(int argc, char** argv) {
 #else
         slocal_fd < 0
 #endif // _WIN32
-        ) {
-
-        fprintf(stderr, "Error sockect: error code: %d\n", get_last_error());
-        exit(-1);
-    }
+        ) def_eprintf(-1, "Error sockect: error code: %d\n", get_last_error())
 
 
     if ( bind(slocal_fd, (sockaddr_t *)&servlocal, (socksize_t) sizeof(servlocal))
-                #ifdef _WIN32
-                    == SOCKET_ERROR
-                #else
-                    < 0
-                #endif /* _WIN32 */
-                )  {
-
-        def_app_exit(slocal_fd, -1, "Error bind: error code: %d\n", get_last_error());
-    }
+        #ifdef _WIN32
+            == SOCKET_ERROR
+        #else
+            < 0
+        #endif /* _WIN32 */
+        ) def_app_exit(slocal_fd, -1, "Error bind: error code: %d\n", get_last_error())
 
 
     /* add console signals handler */
 #ifdef _WIN32
     if ( SetConsoleCtrlHandler(exit_handler, TRUE) == 0 )
-        def_app_exit(slocal_fd, -1, "Error set console handler: error code: %d\n", get_last_error());
+        def_app_exit(slocal_fd, -1, "Error set console handler: error code: %d\n", get_last_error())
 #else
-    if ( config_signal(exit_handler, 3, SIGINT, SIGTERM, SIGBREAK) == -1 )
-        def_app_exit(slocal_fd, -1, "Error set signals proccess: error code: %d\n", get_last_error());
+    if ( config_signal(exit_handler, 2, SIGINT, SIGTERM) == -1 )
+        def_app_exit(slocal_fd, -1, "Error set signals proccess: error code: %d\n", get_last_error())
 #endif
 
 
@@ -247,13 +236,13 @@ int main(int argc, char** argv) {
 
     while (1) {
 
-        if (select(slocal_fd + 1, &recieve_fds, NULL, NULL, NULL) < 0)
-            def_app_exit(slocal_fd, 1, "Error select: error code: %d\n", get_last_error());
+        if ( (select(slocal_fd + 1, &recieve_fds, NULL, NULL, NULL) < 0) && (!exit_flag) )
+            def_app_exit(slocal_fd, 1, "Error select: error code: %d\n", get_last_error())
 
         memset(ipstr, 0, INET_ADDRLEN);
 
         if ( exit_flag ) {
-            def_app_exit(slocal_fd, 1, "listen have been succesful stopped%s\n", "");
+            def_app_exit(slocal_fd, 1, "listen have been succesful stopped%s\n", "")
         } else {
             if ( (byte_size = recvfrom(slocal_fd, recv_mess, mess_size, 0, (sockaddr_t *)&servout, &servout_len)) > 0 ) {
                 paddr = &servout.sin_addr;
@@ -266,13 +255,13 @@ int main(int argc, char** argv) {
         #endif /* _WIN32 */
 
             get_crnt_time(timestr, TIME_STR_LEN);
-            printf("from host [%s:%d] time [%s]:\n[data]", ipstr, ntohs(servout.sin_port), timestr);
+            def_fhprintf("from host [%s:%d] time [%s]:\n[data]", ipstr, ntohs(servout.sin_port), timestr);
         #ifdef _WIN32
             WriteConsole(hstdout, (void *)recv_mess, (DWORD)byte_size, NULL, NULL);
         #else
             write(fileno(stdout), recv_mess, byte_size);
         #endif
-            printf("[data]\n");
+            def_fhprintf("[data]%s\n", "");
 
             }
         }
@@ -311,13 +300,10 @@ int config_signal(void (*s_handler) (int), int sig_number, ...) {
     va_list vptr;
     va_start(vptr, sig_number);
 
-    for (int i = 0; i < sig_number; i++) {
-        if (signal(va_arg(vptr, int), s_handler) == SIG_ERR) {
-            printf("error signal()\n");
+    for (int i = 0; i < sig_number; i++)
+        if (signal(va_arg(vptr, int), s_handler) == SIG_ERR)
             return -1;
-        }
-    }
-    printf("signal set OK\n");
+
     va_end(vptr);
 
     return 0;
