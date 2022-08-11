@@ -1,0 +1,1 @@
+gcc ludp.c -lws2_32 -o ludp
