@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
-
+#include <time.h>
 
 
 
@@ -44,7 +44,7 @@ typedef struct sockaddr_in sockaddr_in_t;
 #define IP_PORT_DELIMITER ":"
 #define DEFAULT_MESS_SIZE 1024
 
-
+#define TIME_STR_LEN 10
 #define INET_ADDRLEN 46
 
 
@@ -60,6 +60,7 @@ typedef struct sockaddr_in sockaddr_in_t;
 int get_last_error();
 int check_to_int(const char *str);
 void app_exit(socket_t sck, int eval);
+ssize_t get_crnt_time(char *tbuf, size_t bsize);
 
 #ifdef __linux__
 int config_signal(void (*s_handler) (int), int sig_number, ...);
@@ -113,6 +114,7 @@ int main(int argc, char** argv) {
     char ipstr[INET_ADDRLEN];
     void *paddr = NULL;
 
+    char timestr[TIME_STR_LEN];
 
 
     if (argc < 2) {
@@ -129,7 +131,6 @@ int main(int argc, char** argv) {
     } else
         port_ptr++;
 
-    printf("ptr port: %s\n", port_ptr);
 
     /* checking the entered buffer size */
     mess_size = 0;
@@ -165,7 +166,6 @@ int main(int argc, char** argv) {
     servlocal.sin_port = htons(atoi(port_ptr));
 
     if ( argv[1][0] == *IP_PORT_DELIMITER ) {
-        printf("ip not exist\n");
         servlocal.sin_addr.s_addr = htonl(INADDR_ANY);
     }
     else {
@@ -182,7 +182,6 @@ int main(int argc, char** argv) {
         char ipstr_addr[i + 1];
         memcpy(ipstr_addr, argv[1], i);
         ipstr_addr[i] = 0;
-        printf("ptr ip: %s\n", ipstr_addr);
         if (
         #ifdef _WIN32
             (servlocal.sin_addr.s_addr = inet_addr(ipstr_addr)) == INADDR_NONE
@@ -231,7 +230,6 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     if ( SetConsoleCtrlHandler(exit_handler, TRUE) == 0 )
         def_app_exit(slocal_fd, -1, "Error set console handler: error code: %d\n", get_last_error());
-    printf("set signal win OK\n");
 #else
     if ( config_signal(exit_handler, 3, SIGINT, SIGTERM, SIGBREAK) == -1 )
         def_app_exit(slocal_fd, -1, "Error set signals proccess: error code: %d\n", get_last_error());
@@ -244,6 +242,9 @@ int main(int argc, char** argv) {
     FD_ZERO(&recieve_fds);
     FD_SET(slocal_fd, &recieve_fds);
     char recv_mess[mess_size];
+
+    printf("listening...\n");
+
     while (1) {
 
         if (select(slocal_fd + 1, &recieve_fds, NULL, NULL, NULL) < 0)
@@ -264,8 +265,8 @@ int main(int argc, char** argv) {
             inet_ntop(servout.sin_family, paddr, ipstr, sizeof(ipstr));
         #endif /* _WIN32 */
 
-
-            printf("from host [%s:%d]:\n[data]", ipstr, ntohs(servout.sin_port));
+            get_crnt_time(timestr, TIME_STR_LEN);
+            printf("from host [%s:%d] time [%s]:\n[data]", ipstr, ntohs(servout.sin_port), timestr);
         #ifdef _WIN32
             WriteConsole(hstdout, (void *)recv_mess, (DWORD)byte_size, NULL, NULL);
         #else
@@ -339,6 +340,22 @@ void exit_handler(int signum) {
     exit_flag = 1;
 }
 #endif // _WIN32
+
+
+ssize_t get_crnt_time(char *tbuf, size_t bsize) {
+    if (!tbuf)
+        return -1;
+
+    time_t stime;
+    struct tm *ctm;
+
+    memset(tbuf, 0, bsize);
+
+    stime = time(NULL);
+    ctm = localtime(&stime);
+
+    return (ssize_t)strftime(tbuf, bsize, "%X", ctm);
+}
 
 int get_last_error() {
 
