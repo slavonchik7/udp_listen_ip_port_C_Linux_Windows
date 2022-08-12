@@ -1,1 +1,1 @@
-gcc ludp.c -lws2_32 -Wall -o ludp
+gcc ludp.c -Wall -Wextra -Wshadow -Wformat=2 -pedantic -Wconversion -Wlogical-op -Wshift-overflow=2 -Wduplicated-cond -Wcast-align -Wcast-qual -D_FORTIFY_SOURCE=2 -O2 -Wshift-overflow=2 -Wduplicated-cond -pedantic-errors -ansi -Wuninitialized -Wmissing-declarations -Winit-self -Wpadded -Wlogical-not-parentheses -Walloc-zero -std=c17 -Wc++-compat -Wredundant-decls -Wmissing-include-dirs -Wswitch-enum -Wbad-function-cast -lws2_32 -o ludp
