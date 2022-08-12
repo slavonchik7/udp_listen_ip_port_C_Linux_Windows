@@ -1,7 +1,5 @@
 
 
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +34,6 @@ typedef struct sockaddr sockaddr_t;
 typedef struct sockaddr_in sockaddr_in_t;
 
 #endif /* _WIN32 */
-
 
 
 
@@ -80,8 +77,6 @@ void exit_handler(int signum);
 
 
 
-
-
 /* основной сокет, через который будут считываться данные */
 socket_t slocal_fd;
 
@@ -103,6 +98,7 @@ HANDLE hstdout;
 #endif
 
 volatile int exit_flag = 0;
+
 
 
 
@@ -330,6 +326,7 @@ int config_signal(void (*s_handler) (int), int sig_number, ...) {
 
 
 #ifdef _WIN32
+
 BOOL exit_handler(DWORD ctrlevnt) {
     if (ctrlevnt == CTRL_C_EVENT || ctrlevnt == CTRL_BREAK_EVENT) {
         exit_flag = 1;
@@ -339,11 +336,14 @@ BOOL exit_handler(DWORD ctrlevnt) {
 
     return FALSE;
 }
+
 #else
+
 void exit_handler(int signum) {
     if (signum == SIGINT || signum == SIGTERM)
         exit_flag = 1;
 }
+
 #endif // _WIN32
 
 
