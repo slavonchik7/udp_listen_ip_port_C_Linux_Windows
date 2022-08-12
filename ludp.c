@@ -11,7 +11,6 @@
 #include <time.h>
 
 
-
 #ifdef _WIN32
 
 #include <winsock2.h>
@@ -24,6 +23,7 @@ typedef SOCKADDR_IN sockaddr_in_t;
 
 #else
 
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -43,7 +43,6 @@ typedef struct sockaddr_in sockaddr_in_t;
 
 #define IP_PORT_DELIMITER ":"
 #define DEFAULT_MESS_SIZE 1024
-
 #define TIME_STR_LEN 10
 #define INET_ADDRLEN 46
 
@@ -113,8 +112,15 @@ int main(int argc, char** argv) {
     char *port_ptr;
 
     size_t mess_size;
-    size_t byte_size;
+    ssize_t byte_size;
     socksize_t servout_len;
+
+    char werrflag;
+    #ifdef _WIN32
+    DWORD write_byte;
+    #else
+    ssize_t write_byte;
+    #endif // _WIN32
 
     fd_set recieve_fds;
 
@@ -146,7 +152,7 @@ int main(int argc, char** argv) {
             if (ms < 0)
                 def_eprintf(-1, "Error: the buffer size cannot be less 0%s\n", "")
             else
-                mess_size = ms;
+                mess_size = (size_t)ms;
         }
     } else
         mess_size = DEFAULT_MESS_SIZE;
@@ -163,7 +169,7 @@ int main(int argc, char** argv) {
 
     memset(&servlocal, 0, sizeof(servlocal));
     servlocal.sin_family = AF_INET;
-    servlocal.sin_port = htons(atoi(port_ptr));
+    servlocal.sin_port = htons(((uint16_t)atoi(port_ptr)));
 
     if ( argv[1][0] == *IP_PORT_DELIMITER ) {
         servlocal.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -254,14 +260,23 @@ int main(int argc, char** argv) {
             inet_ntop(servout.sin_family, paddr, ipstr, sizeof(ipstr));
         #endif /* _WIN32 */
 
+
             get_crnt_time(timestr, TIME_STR_LEN);
             def_fhprintf("from host [%s:%d] time [%s]:\n[data]", ipstr, ntohs(servout.sin_port), timestr);
+            werrflag = 0;
+            werrflag =
         #ifdef _WIN32
-            WriteConsole(hstdout, (void *)recv_mess, (DWORD)byte_size, NULL, NULL);
+                ( WriteConsole(hstdout, (void *)recv_mess, (DWORD)byte_size, &write_byte, NULL) == 0 );
         #else
-            write(fileno(stdout), recv_mess, byte_size);
+                ( (write_byte = write(STDOUT_FILENO, recv_mess, (size_t)byte_size)) != byte_size );
+
         #endif
             def_fhprintf("[data]%s\n", "");
+
+
+            if (werrflag)
+                fprintf(stderr, "warning: not all bytes received were output to the console: error code: %d\n", get_last_error());
+
 
             }
         }
@@ -323,7 +338,8 @@ BOOL exit_handler(DWORD ctrlevnt) {
 }
 #else
 void exit_handler(int signum) {
-    exit_flag = 1;
+    if (signum == SIGINT || signum == SIGTERM)
+        exit_flag = 1;
 }
 #endif // _WIN32
 
