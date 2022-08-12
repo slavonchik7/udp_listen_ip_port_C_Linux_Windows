@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
 
     memset(&servlocal, 0, sizeof(servlocal));
     servlocal.sin_family = AF_INET;
-    servlocal.sin_port = htons(((uint16_t)atoi(port_ptr)));
+    servlocal.sin_port = htons(((unsigned short)atoi(port_ptr)));
 
     if ( argv[1][0] == *IP_PORT_DELIMITER ) {
         servlocal.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -242,7 +242,7 @@ int main(int argc, char** argv) {
 
     while (1) {
 
-        if ( (select(slocal_fd + 1, &recieve_fds, NULL, NULL, NULL) < 0) && (!exit_flag) )
+        if ( (select(1, &recieve_fds, NULL, NULL, NULL) < 0) && (!exit_flag) )
             def_app_exit(slocal_fd, 1, "Error select: error code: %d\n", get_last_error())
 
         memset(ipstr, 0, INET_ADDRLEN);
@@ -250,8 +250,13 @@ int main(int argc, char** argv) {
         if ( exit_flag ) {
             def_app_exit(slocal_fd, 1, "listen have been succesful stopped%s\n", "")
         } else {
-            if ( (byte_size = recvfrom(slocal_fd, recv_mess, mess_size, 0, (sockaddr_t *)&servout, &servout_len)) > 0 ) {
-                paddr = &servout.sin_addr;
+            if ( (byte_size = recvfrom(slocal_fd, recv_mess,
+                                       #ifdef _WIN32
+                                       (int)mess_size,
+                                       #endif // _WIN32
+                                       0, (sockaddr_t *)&servout, &servout_len)) > 0 )
+                {
+            paddr = &servout.sin_addr;
 
 
         #ifdef _WIN32
@@ -263,13 +268,11 @@ int main(int argc, char** argv) {
 
             get_crnt_time(timestr, TIME_STR_LEN);
             def_fhprintf("from host [%s:%d] time [%s]:\n[data]", ipstr, ntohs(servout.sin_port), timestr);
-            werrflag = 0;
             werrflag =
         #ifdef _WIN32
                 ( WriteConsole(hstdout, (void *)recv_mess, (DWORD)byte_size, &write_byte, NULL) == 0 );
         #else
-                ( (write_byte = write(STDOUT_FILENO, recv_mess, (size_t)byte_size)) != byte_size );
-
+                ( (write_byte = write(STDOUT_FILENO, (void *)recv_mess, (size_t)byte_size)) != byte_size );
         #endif
             def_fhprintf("[data]%s\n", "");
 
